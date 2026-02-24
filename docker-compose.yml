@@ -1,0 +1,9 @@
+version: '3.8'
+services:
+  app:
+    image: cr.yandex/crp9gbl4bna1t355qco6/restoringvalues:latest
+    ports:
+      - "8092:8092"
+      - "8093:8093"
+      - "8094:8094"
+      - "8095:8095"
