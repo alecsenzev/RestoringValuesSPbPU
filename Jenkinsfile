@@ -1,5 +1,5 @@
 pipeline {
-  agent { label 'Agent_Label' }
+  agent { label 'Nikita_Alecsentsev' }
 
   parameters {
     choice(name: 'ACTION', choices: ['create_or_update', 'delete'], description: 'Действие со стеком')
