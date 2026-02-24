@@ -11,7 +11,7 @@ pipeline {
   parameters {
     string(name: 'TARGET_HOST', defaultValue: '192.168.199.94', description: 'Deploy host')
     string(name: 'BUILD_JOB', defaultValue: 'Nikita_Alecsentsev_RestoringValuesSPbPU', description: 'L2 job name that produces artifacts.tgz')
-    string(name: 'SSH_CRED_ID', defaultValue: '93484c64-e849-4489-a428-94bc5463c527', description: 'Jenkins SSH credential id')
+    string(name: 'SSH_CRED_ID', defaultValue: 'nikita-ssh-final', description: 'Jenkins SSH credential id')
   }
 
   stages {
