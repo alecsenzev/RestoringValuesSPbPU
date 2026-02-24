@@ -9,11 +9,11 @@ parameters:
 
   image:
     type: string
-    default: ununtu-22.04
+    default: debian-10
 
   flavor:
     type: string
-    default: m1.small
+    default: m1.tiny
 
   net_id:
     type: string
