@@ -45,12 +45,28 @@ pipeline {
           sh '''#!/usr/bin/env bash
 set -euo pipefail
 
+# Отладка (можно оставить или убрать)
 echo "DEBUG: SSH_KEY_FILE path is: $SSH_KEY_FILE"
 echo "DEBUG: SSH_USER is: $SSH_USER"
-ls -la "$SSH_KEY_FILE" || echo "DEBUG: Key file not found!"
+ls -la "$SSH_KEY_FILE"
 
-echo "DEBUG: Attempting direct SSH command..."
-ssh -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=no ${SSH_USER}@${TARGET_HOST} "echo 'SSH CONNECTION SUCCESSFUL'"
+# Настройки SSH
+SSH_OPTS="-i $SSH_KEY_FILE -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+# Копируем архив на сервер
+echo "==> Copying artifacts.tgz to $TARGET_HOST..."
+scp $SSH_OPTS deploy_art/artifacts.tgz ${SSH_USER}@${TARGET_HOST}:/tmp/
+
+# Выполняем удалённые команды
+echo "==> Running remote commands..."
+ssh $SSH_OPTS ${SSH_USER}@${TARGET_HOST} "
+  set -e
+  echo 'Connected successfully!'
+  ls -la /tmp/artifacts.tgz
+  # Здесь можно добавить команды для распаковки и установки
+  # tar -xzf /tmp/artifacts.tgz -C /opt/restoringvalues/
+"
+echo "==> Done!"
 '''
         }
       }
