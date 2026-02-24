@@ -1,5 +1,5 @@
 pipeline {
-  agent { label 'ia_bakastov_lable' }
+  agent { label 'Nikita_lable' }
 
   options {
     timestamps()
@@ -9,9 +9,9 @@ pipeline {
   }
 
   parameters {
-    string(name: 'TARGET_HOST', defaultValue: '192.168.199.254', description: 'Deploy host')
-    string(name: 'BUILD_JOB', defaultValue: 'ia_bakastov_cloud_computing/ia_bakastov_pipline', description: 'L2 job name that produces dist/*.whl and app-restoringvalues.tgz')
-    string(name: 'SSH_CRED_ID', defaultValue: 'deploy_ssh_ia_bakastov', description: 'Jenkins SSH credential id')
+    string(name: 'TARGET_HOST', defaultValue: '192.168.199.94', description: 'Deploy host')
+    string(name: 'BUILD_JOB', defaultValue: 'Nikita_cloud_computing/Nikita_pipline', description: 'L2 job name that produces dist/*.whl and app-restoringvalues.tgz')
+    string(name: 'SSH_CRED_ID', defaultValue: 'deploy_ssh_Nikita', description: 'Jenkins SSH credential id')
   }
 
   stages {
