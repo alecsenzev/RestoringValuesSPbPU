@@ -1,12 +1,12 @@
 pipeline {
-  agent { label 'ia_bakastov_lable' }
+  agent { label 'Nikita_lable' }
 
   parameters {
     choice(name: 'ACTION', choices: ['create_or_update', 'delete'], description: 'Действие со стеком')
-    string(name: 'STACK_NAME', defaultValue: 'ia_bakastov_heat', description: 'Имя Heat stack')
-    string(name: 'SERVER_NAME', defaultValue: 'ia_bakastov_vm', description: 'Имя VM внутри stack')
+    string(name: 'STACK_NAME', defaultValue: 'Nikita_heat', description: 'Имя Heat stack')
+    string(name: 'SERVER_NAME', defaultValue: 'Nikita_vm', description: 'Имя VM внутри stack')
     string(name: 'NET_ID', defaultValue: '17eae9b6-2168-4a07-a0d3-66d5ad2a9f0e', description: 'UUID сети')
-    string(name: 'KEY_NAME', defaultValue: 'ia_bakastov_deploy', description: 'Имя keypair в OpenStack')
+    string(name: 'KEY_NAME', defaultValue: 'Nikita_deploy', description: 'Имя keypair в OpenStack')
     string(name: 'SECURITY_GROUP', defaultValue: 'students-general', description: 'Security group')
   }
 
