@@ -54,6 +54,9 @@ pipeline {
 
             chmod 600 "$SSH_KEY_FILE"
             SSH_OPTS="-i $SSH_KEY_FILE -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+            echo "DEBUG: SSH_KEY_FILE path is: $SSH_KEY_FILE"
+            echo "DEBUG: SSH_USER is: $SSH_USER"
+            ls -la "$SSH_KEY_FILE" || echo "DEBUG: Key file not found!"
 
             # Ищем только artifacts.tgz (wheel больше не нужен)
             TGZ="$(ls -1 deploy_art/artifacts.tgz 2>/dev/null | head -n 1 || true)"
