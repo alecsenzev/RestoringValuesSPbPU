@@ -87,7 +87,7 @@ pipeline {
         sh '''#!/usr/bin/env bash
           set -euo pipefail
 
-          . /home/ubuntu/students-openrc.sh
+          . /home/ubuntu/openrc.sh
           openstack token issue >/dev/null
 
           terraform apply -auto-approve
@@ -155,7 +155,7 @@ pipeline {
         sh '''#!/usr/bin/env bash
           set -euo pipefail
 
-          . /home/ubuntu/students-openrc.sh
+          . /home/ubuntu/openrc.sh
           openstack token issue >/dev/null
 
           if [ -f terraform.rc ]; then
