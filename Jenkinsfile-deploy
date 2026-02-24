@@ -43,171 +43,27 @@ pipeline {
           keyFileVariable: 'SSH_KEY_FILE',
           usernameVariable: 'SSH_USER'
         )]) {
-          sh '''#!/usr/bin/env bash
-            set -euo pipefail
-
-            chmod 600 "$SSH_KEY_FILE"
-            SSH_OPTS="-i $SSH_KEY_FILE -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-            echo "DEBUG: SSH_KEY_FILE path is: $SSH_KEY_FILE"
-            echo "DEBUG: SSH_USER is: $SSH_USER"
-            ls -la "$SSH_KEY_FILE" || echo "DEBUG: Key file not found!"
-
-            # Ищем только artifacts.tgz (wheel больше не нужен)
-            TGZ="$(ls -1 deploy_art/artifacts.tgz 2>/dev/null | head -n 1 || true)"
-
-            if [ -z "$TGZ" ]; then
-              echo "No artifacts.tgz found in deploy_art. Listing:"
-              find deploy_art -maxdepth 6 -type f -print || true
-              exit 1
-            fi
-
-            echo "Using tgz: $TGZ"
-
-            REL="/opt/restoringvalues/releases/${BUILD_NUMBER}"
-
-            echo "==> Bootstrap /opt/restoringvalues (sudo)"
-            ssh $SSH_OPTS ${SSH_USER}@${TARGET_HOST} "\
-              sudo -n mkdir -p /opt/restoringvalues/{releases,bin,run} && \
-              sudo -n chown -R ${SSH_USER}:${SSH_USER} /opt/restoringvalues \
-            "
-
-            echo "==> Create release dir on server"
-            ssh $SSH_OPTS ${SSH_USER}@${TARGET_HOST} "mkdir -p '${REL}'"
-
-            echo "==> Upload artifacts.tgz"
-            scp $SSH_OPTS "$TGZ" ${SSH_USER}@${TARGET_HOST}:"${REL}/artifacts.tgz"
-
-            echo "==> Point /opt/restoringvalues/current to this release"
-            ssh $SSH_OPTS ${SSH_USER}@${TARGET_HOST} "ln -sfn '${REL}' /opt/restoringvalues/current"
-
-            echo "==> Unpack + setup (wheel больше нет, используем venv из L2)"
-            ssh $SSH_OPTS ${SSH_USER}@${TARGET_HOST} 'bash -s' <<'REMOTE'
-              set -euo pipefail
-
-              if ! sudo -n true 2>/dev/null; then
-                echo "ERROR: ubuntu must have passwordless sudo on target host" >&2
-                exit 1
-              fi
-
-              # базовая подготовка
-              sudo -n apt-get update -y >/dev/null 2>&1 || true
-              sudo -n apt-get install -y python3-venv psmisc >/dev/null 2>&1 || true
-
-              sudo -n mkdir -p /opt/restoringvalues/{releases,bin,run}
-              sudo -n chown -R ubuntu:ubuntu /opt/restoringvalues
-
-              cd /opt/restoringvalues/current
-
-              # распаковываем artifacts.tgz (там всё: код, run_output, CSV)
-              tar -xzf artifacts.tgz
-
-              # проверяем, что исходники есть (они могут быть в корне или в папках)
-              if [ -d Simulator ] && [ -d Reciever ] && [ -d Business ]; then
-                echo "✅ Исходники найдены в корне"
-              else
-                echo "⚠️ Исходники не в корне, ищем внутри ..."
-                # возможно они в папке проекта — распаковываем если нужно
-                find . -name "simulator.py" -o -name "reciever.py" -o -name "business.py" | head -5
-              fi
-
-              # создаём venv если нет (на случай, если в L2 он не сохранился)
-              if [ ! -d /opt/restoringvalues/venv ]; then
-                python3 -m venv /opt/restoringvalues/venv
-              fi
-              . /opt/restoringvalues/venv/bin/activate
-              python -m pip install -U pip
-
-              # ставим зависимости, если есть requirements.txt
-              if [ -f requirements.txt ]; then
-                pip install -r requirements.txt
-              else
-                echo "⚠️ requirements.txt не найден, устанавливаем минимальное"
-                pip install websockets pandas numpy scikit-learn dash plotly
-              fi
-
-              # если в архиве есть Business/business.py и др. — они уже на месте
-
-              # создаём start/stop скрипты (как в L2, но адаптируем под структуру)
-              cat >/opt/restoringvalues/bin/start.sh <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-
-cd /opt/restoringvalues/current
-
-PY="/opt/restoringvalues/venv/bin/python"
-
-# чистим порты
-for p in 8092 8093 8094 8095; do
-  fuser -k ${p}/tcp >/dev/null 2>&1 || true
-done
-
-mkdir -p /opt/restoringvalues/run
-rm -f /opt/restoringvalues/run/*.pid /opt/restoringvalues/run/*.log || true
-
-start_bg() {
-  local name="$1"; shift
-  local script="$1"; shift
-  setsid nohup "$PY" "$script" > "/opt/restoringvalues/run/${name}.log" 2>&1 & echo $! > "/opt/restoringvalues/run/${name}.pid"
+              
+              stage('Upload + install + restart') {
+  steps {
+    withCredentials([sshUserPrivateKey(
+      credentialsId: params.SSH_CRED_ID,
+      keyFileVariable: 'SSH_KEY_FILE',
+      usernameVariable: 'SSH_USER'
+    )]) {
+      sh '''#!/usr/bin/env bash
+      set -euo pipefail
+      
+      echo "DEBUG: SSH_KEY_FILE path is: $SSH_KEY_FILE"
+      echo "DEBUG: SSH_USER is: $SSH_USER"
+      ls -la "$SSH_KEY_FILE" || echo "DEBUG: Key file not found!"
+      
+      echo "DEBUG: Attempting direct SSH command..."
+      ssh -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=no ${SSH_USER}@${TARGET_HOST} "echo 'SSH CONNECTION SUCCESSFUL'"
+      '''
+    }
+  }
 }
-
-# Запускаем из текущей директории (где лежат Simulator, Reciever, Business)
-start_bg simulator Simulator/simulator.py
-sleep 1
-start_bg reciever Reciever/reciever.py
-start_bg business Business/business.py
-
-wait
-SH
-              chmod +x /opt/restoringvalues/bin/start.sh
-
-              cat >/opt/restoringvalues/bin/stop.sh <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-
-stop_by_pidfile() {
-  local f="$1"
-  if [ -f "$f" ]; then
-    pid="$(cat "$f")"
-    kill -- "-$pid" >/dev/null 2>&1 || true
-  fi
-}
-
-stop_by_pidfile /opt/restoringvalues/run/business.pid
-stop_by_pidfile /opt/restoringvalues/run/reciever.pid
-stop_by_pidfile /opt/restoringvalues/run/simulator.pid
-
-for p in 8092 8093 8094 8095; do
-  fuser -k ${p}/tcp >/dev/null 2>&1 || true
-done
-SH
-              chmod +x /opt/restoringvalues/bin/stop.sh
-
-              sudo -n tee /etc/systemd/system/restoringvalues.service >/dev/null <<'UNIT'
-[Unit]
-Description=RestoringValues stack (simulator/reciever/business)
-After=network.target
-
-[Service]
-Type=simple
-User=ubuntu
-WorkingDirectory=/opt/restoringvalues/current
-ExecStart=/opt/restoringvalues/bin/start.sh
-ExecStop=/opt/restoringvalues/bin/stop.sh
-Restart=always
-RestartSec=2
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-
-              sudo -n systemctl daemon-reload
-              sudo -n systemctl enable restoringvalues.service >/dev/null 2>&1 || true
-              sudo -n systemctl restart restoringvalues.service
-
-              echo "==> service status"
-              sudo -n systemctl --no-pager --full status restoringvalues.service || true
-REMOTE
-          '''
         }
       }
     }
