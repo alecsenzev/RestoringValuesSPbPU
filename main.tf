@@ -18,7 +18,7 @@ variable "vm_name" {
 
 variable "image_name" {
   type    = string
-  default = "ubuntu-22.04"
+  default = "ununtu-22.04"
 }
 
 variable "flavor_name" {
