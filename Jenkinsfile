@@ -1,10 +1,10 @@
 pipeline {
-  agent { label 'ia_bakastov_lable' }
+  agent { label 'Nikita_Alecsentsev' }
 
   environment {
     PYTHONNOUSERSITE = "1"
-    NAMESPACE        = "ia-bakastov-nms"
-    REGISTRY_ID      = "crp9gbl4bna1t355qco6"
+    NAMESPACE        = "nikita-nms"               // твой namespace
+    REGISTRY_ID      = "crp9gbl4bna1t355qco6"     // тот же registry (уточни у препода)
     IMAGE            = "cr.yandex/${REGISTRY_ID}/restoringvalues:latest"
   }
 
@@ -21,8 +21,7 @@ pipeline {
     stage('Fetch artifacts from L2') {
       steps {
         sh 'rm -rf deploy_art && mkdir -p deploy_art'
-        copyArtifacts(projectName: 'ia_bakastov_cloud_computing/ia_bakastov_pipline', selector: lastSuccessful())
-        // если артефакты лежат в dist/ и корне — подстрой под твою L2
+        copyArtifacts(projectName: 'Nikita_Alecsentsev_RestoringValuesSPbPU', selector: lastSuccessful())
         sh '''#!/usr/bin/env bash
           set -e
           echo "Artifacts:"
@@ -51,7 +50,6 @@ pipeline {
 
           YC=/home/ubuntu/yandex-cloud/bin/yc
 
-          # если yc не найден — сразу понятная ошибка
           test -x "$YC" || (echo "yc not found at $YC" && exit 1)
 
           echo "==> Get IAM token"
@@ -72,7 +70,6 @@ pipeline {
           set -e
           kubectl get ns "$NAMESPACE" >/dev/null 2>&1 || kubectl create ns "$NAMESPACE"
 
-          # подставляем registry_id в манифест (без helm)
           sed "s|cr.yandex/<REGISTRY_ID>/restoringvalues:latest|$IMAGE|g" k8s/deployment.yaml | kubectl apply -n "$NAMESPACE" -f -
           kubectl apply -n "$NAMESPACE" -f k8s/service-simulator.yaml
           kubectl apply -n "$NAMESPACE" -f k8s/service-reciever.yaml
