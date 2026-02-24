@@ -1,78 +1,39 @@
-pipeline {
-  agent { label 'Nikita_Alecsentsev' }
+stage('Fetch artifacts from L2') {
+  steps {
+    script {
+      sh 'rm -rf deploy_art && mkdir -p deploy_art'
 
-  options {
-    timestamps()
-    timeout(time: 15, unit: 'MINUTES')
-    disableConcurrentBuilds()
-    skipDefaultCheckout(true)
-  }
+      // Копируем wheel
+      step([
+        $class: 'CopyArtifact',
+        projectName: params.BUILD_JOB,
+        selector: [$class: 'StatusBuildSelector', stable: false],
+        filter: 'dist/*.whl',
+        target: 'deploy_art',
+        fingerprintArtifacts: true
+      ])
 
-  parameters {
-    string(name: 'TARGET_HOST', defaultValue: '192.168.199.94', description: 'Deploy host')
-    string(name: 'BUILD_JOB', defaultValue: 'Nikita_Alecsentsev_RestoringValuesSPbPU', description: 'L2 job name that produces artifacts.tgz')
-    string(name: 'SSH_CRED_ID', defaultValue: 'nikita-ssh-final', description: 'Jenkins SSH credential id')
-  }
+      // Копируем архив с приложением
+      step([
+        $class: 'CopyArtifact',
+        projectName: params.BUILD_JOB,
+        selector: [$class: 'StatusBuildSelector', stable: false],
+        filter: 'app-restoringvalues.tgz',
+        target: 'deploy_art',
+        fingerprintArtifacts: true
+      ])
 
-  stages {
+      // Копируем логи/CSV (опционально)
+      step([
+        $class: 'CopyArtifact',
+        projectName: params.BUILD_JOB,
+        selector: [$class: 'StatusBuildSelector', stable: false],
+        filter: 'artifacts.tgz',
+        target: 'deploy_art',
+        fingerprintArtifacts: true
+      ])
 
-    stage('Fetch artifacts from L2') {
-      steps {
-        script {
-          sh 'rm -rf deploy_art && mkdir -p deploy_art'
-
-          step([
-            $class: 'CopyArtifact',
-            projectName: params.BUILD_JOB,
-            selector: [$class: 'StatusBuildSelector', stable: false],
-            filter: 'artifacts.tgz',
-            target: 'deploy_art',
-            fingerprintArtifacts: true
-          ])
-
-          sh 'find deploy_art -maxdepth 4 -type f -print'
-        }
-      }
-    }
-
-    stage('Upload + install + restart') {
-      steps {
-        withCredentials([sshUserPrivateKey(
-          credentialsId: params.SSH_CRED_ID,
-          keyFileVariable: 'SSH_KEY_FILE',
-          usernameVariable: 'SSH_USER'
-        )]) {
-          sh '''#!/usr/bin/env bash
-set -euo pipefail
-
-# Путь к ключу на агенте
-SSH_KEY="/home/ubuntu/.ssh/id_rsa"
-
-echo "DEBUG: Using SSH_KEY: $SSH_KEY"
-ls -la "$SSH_KEY" || { echo "Key not found!"; exit 1; }
-
-SSH_OPTS="-i $SSH_KEY -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-
-echo "==> Copying artifacts.tgz to $TARGET_HOST..."
-scp -P 80 $SSH_OPTS deploy_art/artifacts.tgz debian@${TARGET_HOST}:/tmp/
-
-echo "==> Running remote commands..."
-ssh $SSH_OPTS debian@${TARGET_HOST} "
-  set -e
-  echo 'Connected successfully!'
-  ls -la /tmp/artifacts.tgz
-"
-echo "==> Done!"
-'''
-        }
-      }
-    }
-  }
-
-  post {
-    always {
-      archiveArtifacts artifacts: 'deploy_art/**', allowEmptyArchive: true
-      cleanWs()
+      sh 'find deploy_art -maxdepth 4 -type f -print'
     }
   }
 }
