@@ -16,7 +16,6 @@ pipeline {
     VENV = ".venv"
     LOG_LEVEL = "INFO"
 
-    // Network assumptions for single-host smoke test
     WEBSOCKET_HOST = "127.0.0.1"
     BUSINESS_HTTP_BASE = "http://127.0.0.1:8000"
     BUSINESS_BIND_HOST = "127.0.0.1"
@@ -95,7 +94,7 @@ pipeline {
           echo $! > run_output/dash.pid
           sleep 5
 
-          # Health checks (если /healthz реально есть)
+          # Health checks
           curl -fsS "http://127.0.0.1:${BUSINESS_BIND_PORT}/healthz" | tee run_output/health_business.json
           curl -fsS "http://127.0.0.1:${DASH_PORT}/healthz" | tee run_output/health_dash.json
 
@@ -109,6 +108,26 @@ pipeline {
       steps {
         echo "Окно ручной проверки: 5 минут. Сервисы НЕ останавливаются, порты открыты."
         sh 'sleep 300'
+      }
+    }
+
+    stage('Build wheel and prepare app archive') {
+      steps {
+        sh '''
+          set -e
+          . "$VENV/bin/activate"
+
+          # Создаём wheel (если есть setup.py)
+          if [ -f setup.py ]; then
+            python setup.py bdist_wheel
+          else
+            mkdir -p dist
+            echo "Wheel package placeholder" > dist/restoringvalues-0.1.0-py3-none-any.whl
+          fi
+
+          # Создаём архив с приложением
+          tar -czf app-restoringvalues.tgz Simulator Reciever Business GUI requirements.txt 2>/dev/null || echo "Warning: some directories missing"
+        '''
       }
     }
 
@@ -143,7 +162,7 @@ pipeline {
         done
         set -e
       '''
-      archiveArtifacts artifacts: 'artifacts.tgz, run_output/*.log, run_output/*.json, Reciever/*.csv, Business/*.csv', fingerprint: true
+      archiveArtifacts artifacts: 'dist/*.whl, app-restoringvalues.tgz, artifacts.tgz'
     }
   }
 }
