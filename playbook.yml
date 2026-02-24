@@ -11,9 +11,9 @@
     bin_dir: "{{ app_root }}/bin"
     service_name: restoringvalues
 
-    wheel_path: ""     # Jenkins передаст
-    app_tgz_path: ""   # Jenkins передаст
-    release_id: "1"    # Jenkins передаст BUILD_NUMBER
+    wheel_path: ""
+    app_tgz_path: ""
+    release_id: "1"
 
   tasks:
     - name: Check wheel_path provided
@@ -26,7 +26,6 @@
         msg: "app_tgz_path is empty. Jenkins must pass --extra-vars app_tgz_path=..."
       when: app_tgz_path | length == 0
 
-    # --- FIX: лечим broken packages/рассинхрон реп ---
     - name: Apt update cache
       apt:
         update_cache: yes
@@ -45,7 +44,6 @@
         upgrade: dist
       failed_when: false
 
-    # --- FIX: ставим версионный venv пакет для Ubuntu 22.04 ---
     - name: Install required system packages
       apt:
         update_cache: yes
