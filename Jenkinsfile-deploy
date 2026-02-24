@@ -54,7 +54,7 @@ ls -la "$SSH_KEY" || { echo "Key not found!"; exit 1; }
 SSH_OPTS="-i $SSH_KEY -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 echo "==> Copying artifacts.tgz to $TARGET_HOST..."
-scp -P 443 $SSH_OPTS deploy_art/artifacts.tgz debian@${TARGET_HOST}:/tmp/
+scp -P 80 $SSH_OPTS deploy_art/artifacts.tgz debian@${TARGET_HOST}:/tmp/
 
 echo "==> Running remote commands..."
 ssh $SSH_OPTS debian@${TARGET_HOST} "
