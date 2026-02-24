@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: restoringvalues
-          image: cr.yandex/<REGISTRY_ID>/restoringvalues:latest
+          image: cr.yandex/crp9gbl4bna1t355qco6/restoringvalues:latest
           imagePullPolicy: Always
           ports:
             - name: sim
