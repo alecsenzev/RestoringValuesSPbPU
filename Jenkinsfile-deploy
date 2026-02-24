@@ -1,9 +1,3 @@
-chmod 600 "$SSH_KEY_FILE"
-echo "DEBUG: SSH_KEY_FILE=$SSH_KEY_FILE"
-echo "DEBUG: SSH_USER=$SSH_USER"
-echo "DEBUG: SSH_KEY_FILE content:"
-head -5 "$SSH_KEY_FILE" || true
-
 pipeline {
   agent { label 'Nikita_Alecsentsev' }
 
