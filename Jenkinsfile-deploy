@@ -45,7 +45,7 @@ pipeline {
           sh '''#!/usr/bin/env bash
 set -euo pipefail
 
-# Используем прямой путь к ключу (обход бага с переменной)
+# Путь к ключу на агенте
 SSH_KEY="/home/ubuntu/.ssh/id_rsa"
 
 echo "DEBUG: Using SSH_KEY: $SSH_KEY"
@@ -54,14 +54,13 @@ ls -la "$SSH_KEY" || { echo "Key not found!"; exit 1; }
 SSH_OPTS="-i $SSH_KEY -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 echo "==> Copying artifacts.tgz to $TARGET_HOST..."
-scp $SSH_OPTS deploy_art/artifacts.tgz ${SSH_USER}@${TARGET_HOST}:/tmp/
+scp $SSH_OPTS deploy_art/artifacts.tgz debian@${TARGET_HOST}:/tmp/
 
 echo "==> Running remote commands..."
-ssh $SSH_OPTS ${SSH_USER}@${TARGET_HOST} "
+ssh $SSH_OPTS debian@${TARGET_HOST} "
   set -e
   echo 'Connected successfully!'
   ls -la /tmp/artifacts.tgz
-  # Здесь можно будет добавить распаковку и установку
 "
 echo "==> Done!"
 '''
