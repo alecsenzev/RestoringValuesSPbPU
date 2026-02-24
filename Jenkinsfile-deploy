@@ -1,5 +1,5 @@
 pipeline {
-  agent { label 'Agent_Label' }
+  agent { label 'Nikita_Alecsentsev' }
 
   options {
     timestamps()
