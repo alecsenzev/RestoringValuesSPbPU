@@ -9,18 +9,16 @@ terraform {
   }
 }
 
-provider "openstack" {
-
-}
+provider "openstack" {}
 
 variable "vm_name" {
   type    = string
-  default = "ia_bakastov_terr"
+  default = "Nikita-ML-Server-terraform"
 }
 
 variable "image_name" {
   type    = string
-  default = "ununtu-22.04"
+  default = "ubuntu-22.04"
 }
 
 variable "flavor_name" {
@@ -35,18 +33,13 @@ variable "network_name" {
 
 variable "keypair_name" {
   type    = string
-  default = "ia_bakastov_deploy"
+  default = "Nikita_Alecsentsev"
 }
 
 variable "secgroup_name" {
   type    = string
-  default = "students-general"
+  default = "default"
 }
-
-
-# Можно оставить только 22, а порты приложения открывать не обязательно,
-# если не требуют доступ снаружи. Но часто проверяют, что сервис слушает.
-
 
 data "openstack_images_image_v2" "img" {
   name        = var.image_name
@@ -69,7 +62,6 @@ resource "openstack_compute_instance_v2" "vm" {
   }
 }
 
-# Если IP назначается сразу на интерфейс — хватит так:
 output "vm_ip" {
   value = openstack_compute_instance_v2.vm.access_ip_v4 != "" ? openstack_compute_instance_v2.vm.access_ip_v4 : openstack_compute_instance_v2.vm.network[0].fixed_ip_v4
 }
