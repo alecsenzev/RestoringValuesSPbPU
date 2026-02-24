@@ -21,7 +21,6 @@ pipeline {
         script {
           sh 'rm -rf deploy_art && mkdir -p deploy_art'
 
-          // Копируем только artifacts.tgz (в L2-сборке wheel нет)
           step([
             $class: 'CopyArtifact',
             projectName: params.BUILD_JOB,
@@ -43,27 +42,16 @@ pipeline {
           keyFileVariable: 'SSH_KEY_FILE',
           usernameVariable: 'SSH_USER'
         )]) {
-              
-              stage('Upload + install + restart') {
-  steps {
-    withCredentials([sshUserPrivateKey(
-      credentialsId: params.SSH_CRED_ID,
-      keyFileVariable: 'SSH_KEY_FILE',
-      usernameVariable: 'SSH_USER'
-    )]) {
-      sh '''#!/usr/bin/env bash
-      set -euo pipefail
-      
-      echo "DEBUG: SSH_KEY_FILE path is: $SSH_KEY_FILE"
-      echo "DEBUG: SSH_USER is: $SSH_USER"
-      ls -la "$SSH_KEY_FILE" || echo "DEBUG: Key file not found!"
-      
-      echo "DEBUG: Attempting direct SSH command..."
-      ssh -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=no ${SSH_USER}@${TARGET_HOST} "echo 'SSH CONNECTION SUCCESSFUL'"
-      '''
-    }
-  }
-}
+          sh '''#!/usr/bin/env bash
+set -euo pipefail
+
+echo "DEBUG: SSH_KEY_FILE path is: $SSH_KEY_FILE"
+echo "DEBUG: SSH_USER is: $SSH_USER"
+ls -la "$SSH_KEY_FILE" || echo "DEBUG: Key file not found!"
+
+echo "DEBUG: Attempting direct SSH command..."
+ssh -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=no ${SSH_USER}@${TARGET_HOST} "echo 'SSH CONNECTION SUCCESSFUL'"
+'''
         }
       }
     }
