@@ -1,5 +1,5 @@
 pipeline {
-  agent { label 'ia_bakastov_lable' }
+  agent { label 'Nikita_Alecsentsev' }
 
   options {
     timestamps()
@@ -8,8 +8,8 @@ pipeline {
   }
 
   parameters {
-    string(name: 'BUILD_JOB', defaultValue: 'ia_bakastov_cloud_computing/ia_bakastov_pipline', description: 'L2 job that produces dist/*.whl and app-restoringvalues.tgz')
-    string(name: 'SSH_CRED_ID', defaultValue: 'deploy_ssh_ia_bakastov', description: 'Jenkins credential: SSH username with private key to access VM')
+    string(name: 'BUILD_JOB', defaultValue: 'Nikita_Alecsentsev_RestoringValuesSPbPU', description: 'L2 job that produces dist/*.whl and app-restoringvalues.tgz')
+    string(name: 'SSH_CRED_ID', defaultValue: 'nikita-ssh-final', description: 'Jenkins credential: SSH username with private key to access VM')
     choice(name: 'TF_ACTION', choices: ['apply', 'destroy'], description: 'Terraform action')
   }
 
@@ -28,6 +28,7 @@ pipeline {
       steps {
         script {
           sh 'rm -rf deploy_art && mkdir -p deploy_art'
+
           step([
             $class: 'CopyArtifact',
             projectName: params.BUILD_JOB,
@@ -36,6 +37,7 @@ pipeline {
             target: 'deploy_art',
             fingerprintArtifacts: true
           ])
+
           step([
             $class: 'CopyArtifact',
             projectName: params.BUILD_JOB,
@@ -44,6 +46,7 @@ pipeline {
             target: 'deploy_art',
             fingerprintArtifacts: true
           ])
+
           sh 'find deploy_art -maxdepth 3 -type f -print'
         }
       }
@@ -54,15 +57,20 @@ pipeline {
         sh '''#!/usr/bin/env bash
           set -euo pipefail
 
-          # 1) Подать OpenStack креды (без этого provider пустой)
-          . /home/ubuntu/students-openrc.sh
+          # Путь к OpenRC файлу (на агенте)
+          if [ -f /home/ubuntu/students-openrc.sh ]; then
+            . /home/ubuntu/students-openrc.sh
+            echo "OpenStack credentials loaded"
+          else
+            echo "ERROR: /home/ubuntu/students-openrc.sh not found"
+            exit 1
+          fi
 
-          # 2) Быстрый smoke-check что токен реально получается
           openstack token issue >/dev/null
+          echo "OpenStack token получен"
 
           terraform -version
 
-          # 3) зеркала провайдеров
           if [ -f terraform.rc ]; then
             export TF_CLI_CONFIG_FILE="$PWD/terraform.rc"
             echo "Using existing terraform.rc from repo"
