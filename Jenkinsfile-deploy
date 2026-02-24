@@ -1,39 +1,142 @@
-stage('Fetch artifacts from L2') {
-  steps {
-    script {
-      sh 'rm -rf deploy_art && mkdir -p deploy_art'
+pipeline {
+  agent { label 'Nikita_Alecsentsev' }
 
-      // Копируем wheel
-      step([
-        $class: 'CopyArtifact',
-        projectName: params.BUILD_JOB,
-        selector: [$class: 'StatusBuildSelector', stable: false],
-        filter: 'dist/*.whl',
-        target: 'deploy_art',
-        fingerprintArtifacts: true
-      ])
+  options {
+    timestamps()
+    timeout(time: 15, unit: 'MINUTES')
+    disableConcurrentBuilds()
+    skipDefaultCheckout(true)
+  }
 
-      // Копируем архив с приложением
-      step([
-        $class: 'CopyArtifact',
-        projectName: params.BUILD_JOB,
-        selector: [$class: 'StatusBuildSelector', stable: false],
-        filter: 'app-restoringvalues.tgz',
-        target: 'deploy_art',
-        fingerprintArtifacts: true
-      ])
+  parameters {
+    string(name: 'TARGET_HOST', defaultValue: '192.168.199.94', description: 'Deploy host')
+    string(name: 'BUILD_JOB', defaultValue: 'Nikita_Alecsentsev_RestoringValuesSPbPU', description: 'L2 job name')
+    string(name: 'SSH_CRED_ID', defaultValue: 'nikita-ssh-final', description: 'Jenkins SSH credential id')
+  }
 
-      // Копируем логи/CSV (опционально)
-      step([
-        $class: 'CopyArtifact',
-        projectName: params.BUILD_JOB,
-        selector: [$class: 'StatusBuildSelector', stable: false],
-        filter: 'artifacts.tgz',
-        target: 'deploy_art',
-        fingerprintArtifacts: true
-      ])
+  stages {
 
-      sh 'find deploy_art -maxdepth 4 -type f -print'
+    stage('Fetch artifacts from L2') {
+      steps {
+        script {
+          sh 'rm -rf deploy_art && mkdir -p deploy_art'
+
+          // Копируем wheel
+          step([
+            $class: 'CopyArtifact',
+            projectName: params.BUILD_JOB,
+            selector: [$class: 'StatusBuildSelector', stable: false],
+            filter: 'dist/*.whl',
+            target: 'deploy_art',
+            fingerprintArtifacts: true
+          ])
+
+          // Копируем архив с приложением
+          step([
+            $class: 'CopyArtifact',
+            projectName: params.BUILD_JOB,
+            selector: [$class: 'StatusBuildSelector', stable: false],
+            filter: 'app-restoringvalues.tgz',
+            target: 'deploy_art',
+            fingerprintArtifacts: true
+          ])
+
+          // Копируем логи/CSV (опционально)
+          step([
+            $class: 'CopyArtifact',
+            projectName: params.BUILD_JOB,
+            selector: [$class: 'StatusBuildSelector', stable: false],
+            filter: 'artifacts.tgz',
+            target: 'deploy_art',
+            fingerprintArtifacts: true
+          ])
+
+          sh 'find deploy_art -maxdepth 4 -type f -print'
+        }
+      }
+    }
+
+    stage('Upload + install + restart') {
+      steps {
+        withCredentials([sshUserPrivateKey(
+          credentialsId: params.SSH_CRED_ID,
+          keyFileVariable: 'SSH_KEY_FILE',
+          usernameVariable: 'SSH_USER'
+        )]) {
+          sh '''#!/usr/bin/env bash
+set -euo pipefail
+
+# Путь к ключу на агенте
+SSH_KEY="/home/ubuntu/.ssh/id_rsa"
+SSH_OPTS="-i $SSH_KEY -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+# Находим файлы
+WHEEL=$(ls deploy_art/*.whl 2>/dev/null | head -1)
+TGZ=$(ls deploy_art/app-restoringvalues.tgz 2>/dev/null | head -1)
+
+if [ -z "$WHEEL" ] || [ -z "$TGZ" ]; then
+  echo "ERROR: Missing required artifacts"
+  exit 1
+fi
+
+echo "Using wheel: $WHEEL"
+echo "Using tgz: $TGZ"
+
+# Создаём директорию релиза
+ssh $SSH_OPTS debian@${TARGET_HOST} "mkdir -p /opt/restoringvalues/releases/${BUILD_NUMBER}"
+
+# Копируем файлы
+scp $SSH_OPTS "$WHEEL" "$TGZ" debian@${TARGET_HOST}:/opt/restoringvalues/releases/${BUILD_NUMBER}/
+
+# Устанавливаем и запускаем
+ssh $SSH_OPTS debian@${TARGET_HOST} "
+  set -e
+  cd /opt/restoringvalues/releases/${BUILD_NUMBER}
+  
+  # Распаковываем архив с приложением
+  tar -xzf app-restoringvalues.tgz
+  
+  # Создаём/обновляем симлинк
+  ln -sfn /opt/restoringvalues/releases/${BUILD_NUMBER} /opt/restoringvalues/current
+  
+  # Создаём venv и ставим зависимости
+  python3 -m venv /opt/restoringvalues/venv || true
+  . /opt/restoringvalues/venv/bin/activate
+  pip install -U pip
+  pip install *.whl
+  
+  # systemd юнит (упрощённо)
+  sudo tee /etc/systemd/system/restoringvalues.service >/dev/null <<'EOF'
+[Unit]
+Description=RestoringValues
+After=network.target
+
+[Service]
+User=debian
+WorkingDirectory=/opt/restoringvalues/current
+ExecStart=/opt/restoringvalues/venv/bin/python Simulator/simulator.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  sudo systemctl daemon-reload
+  sudo systemctl enable restoringvalues.service
+  sudo systemctl restart restoringvalues.service
+  sudo systemctl status restoringvalues.service --no-pager
+"
+echo "==> Deploy completed!"
+'''
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      archiveArtifacts artifacts: 'deploy_art/**', allowEmptyArchive: true
+      cleanWs()
     }
   }
 }
