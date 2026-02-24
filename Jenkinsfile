@@ -59,7 +59,7 @@ pipeline {
 
           # Путь к OpenRC файлу (на агенте)
           if [ -f /home/ubuntu/students-openrc.sh ]; then
-            . /home/ubuntu/students-openrc.sh
+            . /home/ubuntu/openrc.sh
             echo "OpenStack credentials loaded"
           else
             echo "ERROR: /home/ubuntu/students-openrc.sh not found"
