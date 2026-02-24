@@ -10,7 +10,7 @@ pipeline {
 
   parameters {
     string(name: 'TARGET_HOST', defaultValue: '192.168.199.94', description: 'Deploy host')
-    string(name: 'BUILD_JOB', defaultValue: 'Nikita_cloud_computing/Nikita_pipeline', description: '...')
+    string(name: 'BUILD_JOB', defaultValue: 'Nikita_Alecsentsev_RestoringValuesSPbPU', description: '...')
     string(name: 'SSH_CRED_ID', defaultValue: 'deploy_ssh_Nikita', description: 'Jenkins SSH credential id')
   }
 
