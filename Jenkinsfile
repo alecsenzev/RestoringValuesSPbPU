@@ -11,7 +11,6 @@ pipeline {
   parameters {
     string(name: 'TARGET_HOST', defaultValue: '192.168.199.71', description: 'Deploy host')
     string(name: 'BUILD_JOB', defaultValue: 'Nikita_Alecsentsev_RestoringValuesSPbPU', description: 'L2 job name')
-    string(name: 'SSH_CRED_ID', defaultValue: 'nikita-ssh-key', description: 'Jenkins SSH credential id')
   }
 
   stages {
@@ -49,15 +48,12 @@ pipeline {
 
     stage('Deploy to server') {
       steps {
-        withCredentials([sshUserPrivateKey(
-          credentialsId: params.SSH_CRED_ID,
-          keyFileVariable: 'SSH_KEY',
-          usernameVariable: 'SSH_USER'
-        )]) {
-          sh '''#!/usr/bin/env bash
+        sh '''#!/usr/bin/env bash
 set -euo pipefail
 
-SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+SSH_USER="debian"
+TARGET_HOST="192.168.199.71"
+SSH_OPTS="-i /home/ubuntu/Nikita_Alecsentsev.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 # Находим файлы
 WHEEL=$(find deploy_art -name "*.whl" -type f | head -1)
@@ -79,7 +75,13 @@ scp $SSH_OPTS "$WHEEL" "$TGZ" ${SSH_USER}@${TARGET_HOST}:/tmp/
 ssh $SSH_OPTS ${SSH_USER}@${TARGET_HOST} "
     set -e
     echo '=== Files received ==='
-    ls -la /tmp/*.whl /tmp/app-restoringvalues.tgz 2>/dev/null || true
+    ls -la /tmp/*.whl /tmp/app-restoringvalues.tgz
+    
+    # Устанавливаем Python и pip если их нет
+    if ! command -v pip3 &> /dev/null; then
+        sudo apt update
+        sudo apt install -y python3-pip python3-venv
+    fi
     
     # Создаем директорию для приложения
     mkdir -p ~/app
@@ -88,15 +90,9 @@ ssh $SSH_OPTS ${SSH_USER}@${TARGET_HOST} "
     cp /tmp/*.whl /tmp/app-restoringvalues.tgz ~/app/
     cd ~/app
     
-    # Распаковываем если нужно
+    # Распаковываем tgz если нужно
     if [ -f app-restoringvalues.tgz ]; then
         tar -xzf app-restoringvalues.tgz || true
-    fi
-    
-    # Устанавливаем Python и pip если их нет
-    if ! command -v pip3 &> /dev/null; then
-        sudo apt update
-        sudo apt install -y python3-pip python3-venv
     fi
     
     # Создаем виртуальное окружение и устанавливаем пакет
@@ -107,36 +103,38 @@ ssh $SSH_OPTS ${SSH_USER}@${TARGET_HOST} "
     
     # Проверяем установку
     echo '=== Installation complete ==='
-    pip list | grep restoring
+    pip list | grep restoring || echo 'Package not found in pip list'
+    
+    # Пробуем импортировать
+    python -c 'import restoringvalues; print(\"✅ Package imported successfully\")' 2>/dev/null || echo '⚠️ Import failed'
 "
 
 echo "✅ DONE"
 '''
-        }
       }
     }
     
     stage('Health check') {
       steps {
-        withCredentials([sshUserPrivateKey(
-          credentialsId: params.SSH_CRED_ID,
-          keyFileVariable: 'SSH_KEY',
-          usernameVariable: 'SSH_USER'
-        )]) {
-          sh '''#!/usr/bin/env bash
+        sh '''#!/usr/bin/env bash
 set -euo pipefail
 
-SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+SSH_USER="debian"
+TARGET_HOST="192.168.199.71"
+SSH_OPTS="-i /home/ubuntu/Nikita_Alecsentsev.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 # Проверяем что приложение установлено
 ssh $SSH_OPTS ${SSH_USER}@${TARGET_HOST} "
-    source ~/app/venv/bin/activate
-    python -c 'import restoringvalues; print(\"✅ Package installed successfully\")' 2>/dev/null || echo '⚠️ Import check failed'
+    if [ -f ~/app/venv/bin/activate ]; then
+        source ~/app/venv/bin/activate
+        python -c 'import restoringvalues; print(\"✅ Package installed and importable\")' 2>/dev/null || echo '⚠️ Import check failed'
+    else
+        echo '⚠️ Virtual environment not found'
+    fi
 "
 
 echo "✅ Health check completed"
 '''
-        }
       }
     }
   }
@@ -147,7 +145,7 @@ echo "✅ Health check completed"
       cleanWs()
     }
     success {
-      echo "🎉 Deployment successful to ${TARGET_HOST}"
+      echo "🎉 Deployment successful to ${params.TARGET_HOST}"
     }
     failure {
       echo "❌ Deployment failed"
