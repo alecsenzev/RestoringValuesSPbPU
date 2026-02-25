@@ -3,7 +3,7 @@ pipeline {
 
   parameters {
     string(name: 'TARGET_HOST', defaultValue: '192.168.199.71', description: 'Host IP')
-    string(name: 'SSH_CRED_ID', defaultValue: 'nikita-ssh-final', description: 'SSH key')
+    string(name: 'SSH_CRED_ID', defaultValue: 'nikita-ssh-key', description: 'SSH key')
   }
 
   stages {
