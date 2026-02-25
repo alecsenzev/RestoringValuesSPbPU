@@ -3,7 +3,7 @@ pipeline {
 
   options {
     timestamps()
-    timeout(time: 20, unit: 'MINUTES')
+    timeout(time: 30, unit: 'MINUTES')
     disableConcurrentBuilds()
     skipDefaultCheckout(true)
   }
@@ -75,52 +75,55 @@ scp $SSH_OPTS "$WHEEL" "$TGZ" ${SSH_USER}@${TARGET_HOST}:/tmp/
 ssh $SSH_OPTS ${SSH_USER}@${TARGET_HOST} "
     set -e
     
-    echo '=== 1. ПЕРЕЗАПИСЫВАЕМ sources.list ПОЛНОСТЬЮ ==='
+    echo '=== 1. Чиним репозитории ==='
     sudo tee /etc/apt/sources.list > /dev/null <<EOF
 deb http://archive.debian.org/debian/ buster main contrib non-free
 deb http://archive.debian.org/debian/ buster-updates main contrib non-free
-deb http://archive.debian.org/debian/ buster-backports main contrib non-free
 EOF
     
-    echo '=== 2. Обновляем списки пакетов (игнорируем ошибки) ==='
+    echo '=== 2. Обновляем списки ==='
     sudo apt update -o Acquire::Check-Valid-Until=false || true
     
-    echo '=== 3. Устанавливаем Python 3.9 из бэкпортов ==='
-    sudo apt install -y -t buster-backports python3.9 python3.9-venv python3.9-dev || \\
-    sudo apt install -y python3 python3-venv python3-pip
+    echo '=== 3. Ставим зависимости для сборки ==='
+    sudo apt install -y wget build-essential libssl-dev zlib1g-dev \\
+    libncurses5-dev libncursesw5-dev libreadline-dev libsqlite3-dev \\
+    libgdbm-dev libdb5.3-dev libbz2-dev libexpat1-dev liblzma-dev tk-dev libffi-dev
     
-    echo '=== 4. Проверяем версию Python ==='
-    python3.9 --version || python3 --version
+    echo '=== 4. Качаем и собираем Python 3.9.18 ==='
+    cd /tmp
+    wget https://www.python.org/ftp/python/3.9.18/Python-3.9.18.tgz
+    tar -xf Python-3.9.18.tgz
+    cd Python-3.9.18
+    ./configure --enable-optimizations
+    make -j2
+    sudo make altinstall
     
-    echo '=== 5. Создаем директорию приложения ==='
+    echo '=== 5. Проверяем Python ==='
+    python3.9 --version
+    
+    echo '=== 6. Создаем директорию приложения ==='
     mkdir -p ~/app
     cp /tmp/*.whl /tmp/app-restoringvalues.tgz ~/app/
     cd ~/app
     
-    echo '=== 6. Распаковываем tgz ==='
+    echo '=== 7. Распаковываем tgz ==='
     if [ -f app-restoringvalues.tgz ]; then
         tar -xzf app-restoringvalues.tgz || true
     fi
     
-    echo '=== 7. Создаем виртуальное окружение ==='
-    if command -v python3.9 &> /dev/null; then
-        python3.9 -m venv venv
-    else
-        python3 -m venv venv
-    fi
+    echo '=== 8. Создаем виртуальное окружение ==='
+    python3.9 -m venv venv
     source venv/bin/activate
     
-    echo '=== 8. Обновляем pip ==='
+    echo '=== 9. Обновляем pip ==='
     pip install --upgrade pip setuptools wheel
     
-    echo '=== 9. Устанавливаем wheel ==='
-    pip install *.whl || pip install --no-deps *.whl
+    echo '=== 10. Устанавливаем wheel ==='
+    pip install *.whl
     
-    echo '=== 10. Проверяем установку ==='
-    pip list | grep restoring || echo 'Package not found'
-    
-    echo '=== 11. Тестируем импорт ==='
-    python -c 'import restoringvalues; print(\"✅ SUCCESS: Package imported correctly\")' 2>/dev/null && echo '✅ IMPORT OK' || echo '⚠️ Import failed (expected if missing deps)'
+    echo '=== 11. Проверяем установку ==='
+    pip list | grep restoring
+    python -c 'import restoringvalues; print(\"✅ SUCCESS\")'
 "
 
 echo "✅ DEPLOY COMPLETE"
@@ -138,13 +141,8 @@ TARGET_HOST="192.168.199.71"
 SSH_OPTS="-i /home/ubuntu/Nikita_Alecsentsev.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 ssh $SSH_OPTS ${SSH_USER}@${TARGET_HOST} "
-    if [ -f ~/app/venv/bin/activate ]; then
-        source ~/app/venv/bin/activate
-        python -c 'import restoringvalues; print(\"✅ HEALTH CHECK: Package found\")' 2>/dev/null && echo '✅ OK' || echo '⚠️ Import failed'
-    else
-        echo '⚠️ Virtual environment not found'
-        exit 1
-    fi
+    source ~/app/venv/bin/activate
+    python -c 'import restoringvalues; print(\"✅ HEALTH CHECK OK\")'
 "
 
 echo "✅ Health check passed"
@@ -159,7 +157,7 @@ echo "✅ Health check passed"
       cleanWs()
     }
     success {
-      echo "🎉 SUCCESS: Application deployed to ${params.TARGET_HOST}"
+      echo "🎉 SUCCESS: Application deployed"
     }
     failure {
       echo "❌ FAILURE: Check logs above"
