@@ -9,7 +9,7 @@ pipeline {
   }
 
   parameters {
-    string(name: 'TARGET_HOST', defaultValue: '192.168.199.94', description: 'Deploy host')
+    string(name: 'TARGET_HOST', defaultValue: '192.168.199.71', description: 'Deploy host')
     string(name: 'BUILD_JOB', defaultValue: 'Nikita_Alecsentsev_RestoringValuesSPbPU', description: 'L2 job name')
     string(name: 'SSH_CRED_ID', defaultValue: 'nikita-ssh-final', description: 'Jenkins SSH credential id')
   }
@@ -32,7 +32,7 @@ pipeline {
 
     stage('Upload + install + restart') {
       steps {
-        withCredentials([sshUserPrivateKey(credentialsId: params.SSH_CRED_ID, keyFileVariable: 'SSH_KEY_FILE', usernameVariable: 'SSH_USER')]) {
+        withCredentials([sshUserPrivateKey(credentialsId: 'nikita-ssh-key', keyFileVariable: 'SSH_KEY_FILE', usernameVariable: 'SSH_USER')]) {
           sh '''#!/usr/bin/env bash
 set -euo pipefail
 
