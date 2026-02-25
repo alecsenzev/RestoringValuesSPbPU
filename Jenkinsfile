@@ -14,13 +14,23 @@ pipeline {
         '''
       }
     }
+    
     stage('Apply/Destroy') {
       steps {
         sh '''
           . /home/ubuntu/openrc.sh
-          terraform $ACTION -auto-approve
+          terraform ${ACTION} -auto-approve
         '''
       }
+    }
+  }
+  
+  post {
+    success {
+      echo "✅ Terraform ${ACTION} completed successfully"
+    }
+    failure {
+      echo "❌ Terraform ${ACTION} failed"
     }
   }
 }
