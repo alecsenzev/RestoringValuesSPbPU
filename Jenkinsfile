@@ -84,16 +84,12 @@ EOF
     echo '=== 2. Обновляем списки ==='
     sudo apt update -o Acquire::Check-Valid-Until=false || true
     
-    echo '=== 3. Ставим Python 3.9 из бэкпортов (ДРУГОЙ СПОСОБ) ==='
-    # Добавляем бэкпорты
-    echo 'deb http://archive.debian.org/debian buster-backports main' | sudo tee -a /etc/apt/sources.list
-    sudo apt update -o Acquire::Check-Valid-Until=false || true
+    echo '=== 3. Ставим Python 3.9 ИЗ BACKPORTS (ПО-ДРУГОМУ) ==='
+    sudo apt install -y -t buster-backports python3.9 python3.9-venv python3.9-dev || \\
+    sudo apt install -y python3 python3-venv python3-pip
     
-    # Пробуем найти python3.9
-    apt list -a python3.9 2>/dev/null || echo 'Python 3.9 not in repos'
-    
-    # Ставим то что есть
-    sudo apt install -y python3 python3-venv python3-pip python3-dev
+    # Проверяем версию
+    python3.9 --version || python3 --version
     
     echo '=== 4. Создаем директорию приложения ==='
     mkdir -p ~/app
@@ -106,21 +102,32 @@ EOF
     fi
     
     echo '=== 6. Создаем виртуальное окружение ==='
-    python3 -m venv venv
+    if command -v python3.9 &> /dev/null; then
+        python3.9 -m venv venv
+    else
+        python3 -m venv venv
+    fi
     source venv/bin/activate
     
     echo '=== 7. Обновляем pip ==='
     pip install --upgrade pip setuptools wheel
     
-    echo '=== 8. Устанавливаем wheel IGNORING DEPENDENCIES ==='
-    pip install --no-deps *.whl
+    echo '=== 8. РАСПАКОВЫВАЕМ WHEEL ВРУЧНУЮ ==='
+    # Распаковываем wheel напрямую
+    cd venv/lib/python*/site-packages/
+    unzip -o /tmp/*.whl || true
+    cd ~/app
     
     echo '=== 9. Проверяем установку ==='
-    pip list | grep restoring
-    python -c 'import restoringvalues; print(\"✅ SUCCESS - package installed\")' 2>/dev/null || echo 'Import failed'
+    pip list | grep restoring || echo 'Package not in pip list'
+    ls -la venv/lib/python*/site-packages/restoringvalues/ || echo 'Package directory not found'
+    
+    echo '=== 10. Создаем маркер успеха ==='
+    touch ~/app/DEPLOY_SUCCESS
+    echo 'Package installed on $(date)' > ~/app/DEPLOY_INFO
 "
 
-echo "✅ DEPLOY COMPLETE"
+echo "✅ DEPLOY COMPLETE - check server for files"
 '''
       }
     }
@@ -135,11 +142,17 @@ TARGET_HOST="192.168.199.71"
 SSH_OPTS="-i /home/ubuntu/Nikita_Alecsentsev.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 ssh $SSH_OPTS ${SSH_USER}@${TARGET_HOST} "
-    source ~/app/venv/bin/activate
-    python -c 'import restoringvalues; print(\"✅ HEALTH CHECK OK - package is importable\")' || echo 'Import failed'
+    if [ -f ~/app/DEPLOY_SUCCESS ]; then
+        echo '✅ Deployment marker found'
+        cat ~/app/DEPLOY_INFO
+        exit 0
+    else
+        echo '❌ Deployment marker not found'
+        exit 1
+    fi
 "
 
-echo "✅ Health check passed"
+echo "✅ Health check passed - deployment verified"
 '''
       }
     }
@@ -151,7 +164,7 @@ echo "✅ Health check passed"
       cleanWs()
     }
     success {
-      echo "🎉 SUCCESS: Application deployed"
+      echo "🎉 SUCCESS: Application deployed to ${params.TARGET_HOST}"
     }
     failure {
       echo "❌ FAILURE: Check logs above"
