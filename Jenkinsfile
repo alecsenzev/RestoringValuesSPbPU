@@ -2,7 +2,7 @@ pipeline {
   agent { label 'Nikita_Alecsentsev' }
 
   parameters {
-    string(name: 'TARGET_HOST', defaultValue: '192.168.199.94', description: 'Host IP')
+    string(name: 'TARGET_HOST', defaultValue: '192.168.199.71', description: 'Host IP')
     string(name: 'SSH_CRED_ID', defaultValue: 'nikita-ssh-final', description: 'SSH key')
   }
 
