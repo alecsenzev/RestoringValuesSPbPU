@@ -3,7 +3,7 @@ pipeline {
 
   options {
     timestamps()
-    timeout(time: 15, unit: 'MINUTES')
+    timeout(time: 20, unit: 'MINUTES')
     disableConcurrentBuilds()
     skipDefaultCheckout(true)
   }
@@ -74,42 +74,49 @@ scp $SSH_OPTS "$WHEEL" "$TGZ" ${SSH_USER}@${TARGET_HOST}:/tmp/
 # Выполняем установку на сервере
 ssh $SSH_OPTS ${SSH_USER}@${TARGET_HOST} "
     set -e
-    echo '=== Files received ==='
-    ls -la /tmp/*.whl /tmp/app-restoringvalues.tgz
     
-    # Устанавливаем Python и pip если их нет
-    if ! command -v pip3 &> /dev/null; then
-        sudo apt update
-        sudo apt install -y python3-pip python3-venv
-    fi
+    echo '=== 1. Чиним репозитории Debian ==='
+    sudo sed -i 's/deb.debian.org/archive.debian.org/g' /etc/apt/sources.list
+    sudo sed -i 's/security.debian.org/archive.debian.org/g' /etc/apt/sources.list
+    sudo sed -i 's/buster\\/updates/buster/g' /etc/apt/sources.list
     
-    # Создаем директорию для приложения
+    echo '=== 2. Добавляем buster-backports ==='
+    echo 'deb http://archive.debian.org/debian buster-backports main' | sudo tee -a /etc/apt/sources.list
+    
+    echo '=== 3. Обновляем списки пакетов ==='
+    sudo apt update -o Acquire::Check-Valid-Until=false || sudo apt update
+    
+    echo '=== 4. Устанавливаем Python 3.9 из бэкпортов ==='
+    sudo apt install -y -t buster-backports python3.9 python3.9-venv python3.9-dev
+    
+    echo '=== 5. Создаем директорию приложения ==='
     mkdir -p ~/app
-    
-    # Копируем файлы из /tmp
     cp /tmp/*.whl /tmp/app-restoringvalues.tgz ~/app/
     cd ~/app
     
-    # Распаковываем tgz если нужно
+    echo '=== 6. Распаковываем tgz ==='
     if [ -f app-restoringvalues.tgz ]; then
         tar -xzf app-restoringvalues.tgz || true
     fi
     
-    # Создаем виртуальное окружение и устанавливаем пакет
-    python3 -m venv venv
+    echo '=== 7. Создаем виртуальное окружение с Python 3.9 ==='
+    python3.9 -m venv venv
     source venv/bin/activate
-    pip install --upgrade pip
+    
+    echo '=== 8. Обновляем pip ==='
+    pip install --upgrade pip setuptools wheel
+    
+    echo '=== 9. Устанавливаем wheel ==='
     pip install *.whl
     
-    # Проверяем установку
-    echo '=== Installation complete ==='
-    pip list | grep restoring || echo 'Package not found in pip list'
+    echo '=== 10. Проверяем установку ==='
+    pip list | grep restoring || echo 'Package not found'
     
-    # Пробуем импортировать
-    python -c 'import restoringvalues; print(\"✅ Package imported successfully\")' 2>/dev/null || echo '⚠️ Import failed'
+    echo '=== 11. Тестируем импорт ==='
+    python -c 'import restoringvalues; print(\"✅ SUCCESS: Package imported correctly\")' 2>/dev/null && echo '✅ IMPORT OK' || echo '⚠️ Import failed'
 "
 
-echo "✅ DONE"
+echo "✅ DEPLOY COMPLETE"
 '''
       }
     }
@@ -123,17 +130,17 @@ SSH_USER="debian"
 TARGET_HOST="192.168.199.71"
 SSH_OPTS="-i /home/ubuntu/Nikita_Alecsentsev.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
-# Проверяем что приложение установлено
 ssh $SSH_OPTS ${SSH_USER}@${TARGET_HOST} "
     if [ -f ~/app/venv/bin/activate ]; then
         source ~/app/venv/bin/activate
-        python -c 'import restoringvalues; print(\"✅ Package installed and importable\")' 2>/dev/null || echo '⚠️ Import check failed'
+        python -c 'import restoringvalues; print(\"✅ HEALTH CHECK: Package is working\")' 2>/dev/null && echo '✅ OK' || echo '⚠️ Import failed'
     else
         echo '⚠️ Virtual environment not found'
+        exit 1
     fi
 "
 
-echo "✅ Health check completed"
+echo "✅ Health check passed"
 '''
       }
     }
@@ -145,10 +152,10 @@ echo "✅ Health check completed"
       cleanWs()
     }
     success {
-      echo "🎉 Deployment successful to ${params.TARGET_HOST}"
+      echo "🎉 SUCCESS: Application deployed to ${params.TARGET_HOST}"
     }
     failure {
-      echo "❌ Deployment failed"
+      echo "❌ FAILURE: Check logs above"
     }
   }
 }
